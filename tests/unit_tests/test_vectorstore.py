@@ -1107,7 +1107,7 @@ def test_mariadb_store_with_with_metadata_filters_5(
         assert [doc.metadata["id"] for doc in docs] == expected_ids, test_filter
 
 def test_mariadb_lazy_store_with_metadatas() -> None:
-    """Test end to end construction and search."""
+    """Test end to end construction and search using lazy initialisation."""
     texts = ["foo", "bar", "baz"]
     metadatas = [{"page": str(i)} for i in range(len(texts))]
     with pool() as tmppool:
@@ -1128,7 +1128,7 @@ def test_mariadb_lazy_store_with_metadatas() -> None:
         )
 
 def test_mariadb_lazy_check_collection_not_exists() -> None:
-    """Test end to end construction and search."""
+    """Test that the collection does not exist after table creation with lazy initialisation."""
     texts = ["foo", "bar", "baz"]
     metadatas = [{"page": str(i)} for i in range(len(texts))]
     with pool() as tmppool:
@@ -1143,7 +1143,7 @@ def test_mariadb_lazy_check_collection_not_exists() -> None:
         assert store.check_if_collection_exists() is False
 
 def test_mariadb_lazy_check_collection_exists() -> None:
-    """Test end to end construction and search."""
+    """Test that the collection exists after adding documents with lazy initialisation."""
     texts = ["foo", "bar", "baz"]
     metadatas = [{"page": str(i)} for i in range(len(texts))]
     with pool() as tmppool:
@@ -1162,7 +1162,7 @@ def test_mariadb_lazy_check_collection_exists() -> None:
         assert collection == store._collection_id
 
 def test_mariadb_lazy_collection_table_not_found() -> None:
-    """Test end to end construction and search."""
+    """Test that the collection table does not exist on lazy initialisation."""
     texts = ["foo", "bar", "baz"]
     metadatas = [{"page": str(i)} for i in range(len(texts))]
     with pool() as tmppool:
