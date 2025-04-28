@@ -329,6 +329,7 @@ class MariaDBStore(VectorStore):
         logger: Optional[logging.Logger] = None,
         engine_args: Optional[dict[str, Any]] = None,
         relevance_score_fn: Optional[Callable[[float], float]] = None,
+        lazy_init: bool = False,
     ) -> None:
         """Initialize the MariaDB vector store.
 
@@ -382,8 +383,11 @@ class MariaDBStore(VectorStore):
             self._embedding_meta_col_name
         )
 
+        self.lazy_init = lazy_init
+
         # Initialize tables and collection
-        self.__post_init__()
+        if not lazy_init:
+            self.__post_init__()
 
     def __post_init__(
         self,
@@ -517,6 +521,25 @@ class MariaDBStore(VectorStore):
             cursor.close()
             con.close()
 
+    def check_if_collection_exists(self) -> str:
+        con = self._datasource.raw_connection()
+        cursor = con.cursor()
+        try:
+            cursor.execute(
+                f"SELECT {self._collection_id_col_name}"
+                f" FROM {self._collection_table_name}"
+                f" WHERE {self._collection_label_col_name}=?",
+                (self.collection_name,),
+            )
+            row = cursor.fetchone()
+            if row is not None:
+                return row[0]
+            return False
+
+        finally:
+            cursor.close()
+            con.close()
+
     def create_collection(self) -> None:
         """Create a new collection or retrieve existing one."""
         if self.pre_delete_collection:
@@ -526,18 +549,10 @@ class MariaDBStore(VectorStore):
         cursor = con.cursor()
         try:
             # Check if collection exists
-            cursor.execute(
-                f"SELECT {self._collection_id_col_name}"
-                f" FROM {self._collection_table_name}"
-                f" WHERE {self._collection_label_col_name}=?",
-                (self.collection_name,),
-            )
-            row = cursor.fetchone()
-
-            if row is not None:
-                self._collection_id = row[0]
+            collection_id = self.check_if_collection_exists()
+            if collection_id:
+                self._collection_id = collection_id
                 return
-
             # Create new collection
             query = (
                 f"INSERT INTO {self._collection_table_name}"
@@ -769,6 +784,11 @@ class MariaDBStore(VectorStore):
         """
         texts_ = list(texts)
         embeddings = self.embedding_function.embed_documents(texts_)
+
+        if self.lazy_init and embeddings:
+            self._embedding_length = len(embeddings[0])
+            self.__post_init__()
+
         return self.add_embeddings(
             texts=texts_,
             embeddings=list(embeddings),

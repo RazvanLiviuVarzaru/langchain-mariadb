@@ -5,6 +5,7 @@ import json
 from contextlib import contextmanager
 from typing import Any, Dict, Generator, List, Sequence
 
+import mariadb
 import pytest
 import sqlalchemy
 
@@ -1104,3 +1105,76 @@ def test_mariadb_store_with_with_metadata_filters_5(
     with get_vectorstore() as store:
         docs = store.similarity_search("meow", k=5, filter=test_filter)
         assert [doc.metadata["id"] for doc in docs] == expected_ids, test_filter
+
+def test_mariadb_lazy_store_with_metadatas() -> None:
+    """Test end to end construction and search."""
+    texts = ["foo", "bar", "baz"]
+    metadatas = [{"page": str(i)} for i in range(len(texts))]
+    with pool() as tmppool:
+        store = MariaDBStore(
+            embeddings=FakeEmbeddingsWithAdaDimension(),
+            collection_name="test_collection",
+            datasource=tmppool,
+            config=MariaDBStoreSettings(pre_delete_collection=True),
+            lazy_init=True
+        )
+        store.add_texts(
+            texts=texts,
+            metadatas=metadatas,
+        )
+        output = store.similarity_search("foo", k=1)
+        _compare_documents(
+            output, [Document(page_content="foo", metadata={"page": "0"})]
+        )
+
+def test_mariadb_lazy_check_collection_not_exists() -> None:
+    """Test end to end construction and search."""
+    texts = ["foo", "bar", "baz"]
+    metadatas = [{"page": str(i)} for i in range(len(texts))]
+    with pool() as tmppool:
+        store = MariaDBStore(
+            embeddings=FakeEmbeddingsWithAdaDimension(),
+            collection_name="test_collection",
+            datasource=tmppool,
+            config=MariaDBStoreSettings(pre_delete_collection=True),
+            lazy_init=True
+        )
+        store.create_tables_if_not_exists()
+        assert store.check_if_collection_exists() is False
+
+def test_mariadb_lazy_check_collection_exists() -> None:
+    """Test end to end construction and search."""
+    texts = ["foo", "bar", "baz"]
+    metadatas = [{"page": str(i)} for i in range(len(texts))]
+    with pool() as tmppool:
+        store = MariaDBStore(
+            embeddings=FakeEmbeddingsWithAdaDimension(),
+            collection_name="test_collection",
+            datasource=tmppool,
+            config=MariaDBStoreSettings(pre_delete_collection=True),
+            lazy_init=True
+        )
+        store.add_texts(
+            texts=texts,
+            metadatas=metadatas,
+        )
+        collection = store.check_if_collection_exists()
+        assert collection == store._collection_id
+
+def test_mariadb_lazy_collection_table_not_found() -> None:
+    """Test end to end construction and search."""
+    texts = ["foo", "bar", "baz"]
+    metadatas = [{"page": str(i)} for i in range(len(texts))]
+    with pool() as tmppool:
+        with pytest.raises(
+            mariadb.ProgrammingError,
+            match="Table 'langchain.langchain_collection' doesn't exist",
+        ):
+            store = MariaDBStore(
+                embeddings=FakeEmbeddingsWithAdaDimension(),
+                collection_name="test_collection",
+                datasource=tmppool,
+                config=MariaDBStoreSettings(pre_delete_collection=True),
+                lazy_init=True
+            )
+            store.check_if_collection_exists()
