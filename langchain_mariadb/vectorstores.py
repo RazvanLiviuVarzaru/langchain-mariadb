@@ -387,9 +387,9 @@ class MariaDBStore(VectorStore):
 
         # Initialize tables and collection
         if not lazy_init:
-            self.__post_init__()
+            self._init_vectorstore()
 
-    def __post_init__(
+    def _init_vectorstore(
         self,
     ) -> None:
         """Initialize the store."""
@@ -550,7 +550,7 @@ class MariaDBStore(VectorStore):
         try:
             # Check if collection exists
             collection_id = self.check_if_collection_exists()
-            if collection_id:
+            if collection_id != False:
                 self._collection_id = collection_id
                 return
             # Create new collection
@@ -787,7 +787,7 @@ class MariaDBStore(VectorStore):
 
         if self.lazy_init and embeddings:
             self._embedding_length = len(embeddings[0])
-            self.__post_init__()
+            self._init_vectorstore()
 
         return self.add_embeddings(
             texts=texts_,
